@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Digital Thangka Final</title>
+    <title>Mani - Digital Thangka Final Fix</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
@@ -17,7 +17,12 @@
             border-radius: 12px;
             padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 60px rgba(0,0,0,0.9);
+            max-height: 90vh; overflow-y: auto; /* 防止屏幕小显示不全 */
         }
+        
+        /* 隐藏滚动条但保留功能 */
+        #ui::-webkit-scrollbar { width: 4px; }
+        #ui::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
 
         h3 { 
             margin: 0 0 12px 0; color: #ffb700; font-size: 14px; 
@@ -60,7 +65,7 @@
 </head>
 <body>
 
-<div id="loading">INITIALIZING...</div>
+<div id="loading">INITIALIZING SYSTEM...</div>
 
 <div id="ui">
     <div onclick="document.getElementById('ui').style.opacity='0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
@@ -75,7 +80,6 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 新增：大小调节 -->
     <div class="control">
         <label>SIZE / 法相大小</label>
         <input type="range" id="imgScale" min="0.5" max="3.0" step="0.1" value="1.0">
@@ -103,9 +107,15 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
+    <!-- 修复：把两个颜色控制器都加回来 -->
     <div class="control">
-        <label>GALAXY / 星系颜色</label>
+        <label>GALAXY CORE / 星系核心色</label>
         <input type="color" id="colorInside" value="#ff6030" oninput="updateGalaxy()">
+    </div>
+    
+    <div class="control">
+        <label>GALAXY EDGE / 星系边缘色</label>
+        <input type="color" id="colorOutside" value="#1b3984" oninput="updateGalaxy()">
     </div>
 
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
@@ -211,7 +221,6 @@
     }
 
     // --- 4. 影像引擎 ---
-    
     function processSource(src) {
         const img = new Image();
         img.onload = () => {
@@ -245,7 +254,6 @@
         const points = [];
         const colors = [];
         const gap = 1; 
-
         const jitter = 0.9;
 
         for(let y=0; y<h; y+=gap) {
@@ -351,11 +359,10 @@
         if(imgPoints) {
             imgPoints.quaternion.copy(camera.quaternion);
             const height = parseFloat(document.getElementById('textHeight').value);
-            // 这里加入缩放逻辑
             const scale = parseFloat(document.getElementById('imgScale').value);
             
             imgPoints.position.y = height + Math.sin(elapsedTime * 0.5) * 0.2;
-            imgPoints.scale.set(scale, scale, scale); // 实时缩放
+            imgPoints.scale.set(scale, scale, scale);
         }
 
         controls.update();
@@ -384,6 +391,9 @@
         reader.readAsDataURL(file);
         reader.onload = e => processSource(e.target.result);
     });
+
+    document.getElementById('colorInside').addEventListener('input', updateGalaxy);
+    document.getElementById('colorOutside').addEventListener('input', updateGalaxy);
 
 </script>
 </body>
