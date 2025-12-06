@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Sumeru Ultimate</title>
+    <title>Mani - Absolute Fix</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', monospace; user-select: none; }
         
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(10, 8, 5, 0.9); /* 深金黑 */
-            border: 1px solid rgba(255,180,0,0.2);
+            background: rgba(10, 8, 5, 0.95);
+            border: 1px solid rgba(255,180,0,0.3);
             border-radius: 12px;
-            padding: 20px; color: #fff; z-index: 100;
+            padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 60px rgba(0,0,0,0.9);
             max-height: 90vh; overflow-y: auto;
         }
@@ -21,13 +21,13 @@
 
         h3 { 
             margin: 0 0 15px 0; color: #ffb700; font-size: 14px; 
-            letter-spacing: 3px; text-align: center; text-transform: uppercase;
+            letter-spacing: 2px; text-align: center; text-transform: uppercase;
             text-shadow: 0 0 15px rgba(255,183,0,0.4);
             border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;
         }
 
-        .control { margin-bottom: 15px; }
-        label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 5px; }
+        .control { margin-bottom: 12px; }
+        label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 4px; }
         
         input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffb700; height: 3px; }
         input[type="file"] { width: 100%; font-size: 10px; color: #888; }
@@ -39,7 +39,7 @@
             color: #000; font-weight: bold; cursor: pointer;
             margin-top: 5px; font-size: 12px;
         }
-        .btn:hover { filter: brightness(1.2); box-shadow: 0 0 15px rgba(255,160,0,0.4); }
+        .btn:hover { filter: brightness(1.2); }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 10px; }
         
@@ -62,7 +62,7 @@
 </head>
 <body>
 
-<div id="loading">INITIALIZING SUMERU...</div>
+<div id="loading">INITIALIZING...</div>
 
 <div id="ui">
     <div id="btnClose" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
@@ -95,9 +95,15 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:15px 0;"></div>
 
-    <!-- 星系参数 (调整版) -->
+    <!-- 星系参数 (修复版) -->
     <div class="control">
-        <label>GALAXY THICKNESS / 中间厚度 (隆起)</label>
+        <label>GALAXY SIZE / 扩散范围</label>
+        <!-- 把这个找回来了，防止报错 -->
+        <input type="range" id="galRadius" min="10" max="60" value="30">
+    </div>
+
+    <div class="control">
+        <label>GALAXY THICKNESS / 中间厚度</label>
         <input type="range" id="galThick" min="0" max="50" value="25">
     </div>
     
@@ -120,7 +126,7 @@
         <input type="color" id="colorOutside" value="#1b3984">
     </div>
 
-    <div class="hint">按 <b>H</b> 键隐藏界面 | 左键旋转 | 右键平移</div>
+    <div class="hint">按 <b>H</b> 键隐藏界面</div>
 </div>
 
 <script type="module">
@@ -145,7 +151,7 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = -0.5; // 【关键】负数 = 顺时针右旋
+    controls.autoRotateSpeed = -0.5; // 右旋
 
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
@@ -172,7 +178,7 @@
         spin: 1,
         randomness: 0.5,
         randomnessPower: 3,
-        thickness: 2.5, // 默认厚度系数
+        thickness: 2.5, 
         insideColor: '#ff6030',
         outsideColor: '#1b3984',
         
@@ -200,25 +206,21 @@
             const i3 = i * 3;
             const radius = Math.random() * parameters.radius;
             
-            // 【关键修改】右旋螺旋
-            // 加个负号，让旋臂反向弯曲，配合顺时针旋转，形成自然的拖尾效果
+            // 右旋
             const spinAngle = -radius * parameters.spin; 
             const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
 
             const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
             
-            // 【关键修改】中间厚，边缘薄 (Bulge Effect)
-            // 距离中心越近 (radius小)，Y轴随机范围越大
-            // 使用 (1 - r/R) 来计算衰减
+            // 厚度衰减
             let thicknessFalloff = 1 - (radius / parameters.radius);
-            thicknessFalloff = Math.pow(thicknessFalloff, 1.5); // 让衰减更自然，呈钟形
-            
+            thicknessFalloff = Math.max(0, Math.pow(thicknessFalloff, 1.5));
             const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.thickness * thicknessFalloff * 2.0; 
             
             const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
 
             positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
-            positions[i3 + 1] = randomY; // 应用厚度
+            positions[i3 + 1] = randomY; 
             positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
 
             const mixedColor = colorInside.clone();
@@ -344,28 +346,29 @@
         colorArray[i3+2] = Math.min(1, base.b * boost);
     }
 
-    // --- 5. 事件绑定 (保留稳健写法) ---
-    
+    // --- 5. 稳健事件绑定 (Fix Crash) ---
     function updateGalaxyParams() {
-        parameters.radius = parseFloat(document.getElementById('galRadius').value || 30);
-        parameters.randomness = parseFloat(document.getElementById('galRandom').value) / 10;
-        parameters.spin = parseFloat(document.getElementById('galSpin').value) / 10;
-        parameters.thickness = parseFloat(document.getElementById('galThick').value) / 10;
+        // 安全获取 DOM 元素的值，防止 null 报错
+        const getVal = (id) => parseFloat(document.getElementById(id)?.value || 0);
+        
+        parameters.radius = getVal('galRadius') || 30; // 默认值兜底
+        parameters.thickness = getVal('galThick') / 10;
+        parameters.randomness = getVal('galRandom') / 10;
+        parameters.spin = getVal('galSpin') / 10;
         parameters.insideColor = document.getElementById('colorInside').value;
         parameters.outsideColor = document.getElementById('colorOutside').value;
         generateGalaxy();
     }
 
-    // 绑定滑块
-    const ids = ['galRadius', 'galRandom', 'galSpin', 'galThick', 'colorInside', 'colorOutside'];
-    // 动态添加一些滑块（如果没有在HTML里，JS也不会报错）
-    // 为了美观，我只在下面添加了必要的 HTML，这里JS要做对应
+    // 绑定所有星系滑块
+    document.getElementById('galRadius').addEventListener('input', updateGalaxyParams);
     document.getElementById('galThick').addEventListener('input', updateGalaxyParams);
     document.getElementById('galRandom').addEventListener('input', updateGalaxyParams);
     document.getElementById('galSpin').addEventListener('input', updateGalaxyParams);
     document.getElementById('colorInside').addEventListener('input', updateGalaxyParams);
     document.getElementById('colorOutside').addEventListener('input', updateGalaxyParams);
 
+    // 绑定法相
     document.getElementById('pSizeRange').addEventListener('input', function() {
         if(imgMaterial) imgMaterial.size = parseFloat(this.value);
     });
@@ -396,35 +399,4 @@
     // --- 6. 启动 ---
     generateGalaxy();
     document.getElementById('loading').style.opacity = 0;
-    setTimeout(() => document.getElementById('loading').remove(), 500);
-
-    const clock = new THREE.Clock();
-
-    function tick() {
-        const elapsedTime = clock.getElapsedTime();
-
-        // 顺时针旋转 (负数)
-        if(galaxyPoints) galaxyPoints.rotation.y = -elapsedTime * 0.05;
-        
-        if(imgPoints) {
-            imgPoints.quaternion.copy(camera.quaternion);
-            imgPoints.position.y = parameters.imgHeight + Math.sin(elapsedTime * 0.5) * 0.2;
-            imgPoints.scale.setScalar(parameters.imgScale);
-        }
-
-        controls.update();
-        composer.render();
-        requestAnimationFrame(tick);
-    }
-    tick();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        composer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-</script>
-</body>
-</html>
+    setTimeout(() => document.getElementById('loadi
