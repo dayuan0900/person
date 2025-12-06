@@ -3,33 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - HD Portrait (Rescue)</title>
+    <title>Mani - Ultra Film Grain</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
             font-family: 'Segoe UI', monospace; user-select: none; 
         }
 
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; color: #ffca28;
-            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
-        }
-        
-        #error-log {
-            color: #ff5555; font-size: 10px; margin-top: 10px; 
-            max-width: 80%; text-align: center;
-        }
-
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(15, 15, 20, 0.9);
-            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(15, 15, 20, 0.92);
+            border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px;
             padding: 15px; color: #fff; z-index: 100;
-            box-shadow: 0 10px 50px rgba(0,0,0,0.8);
-            display: none; /* 加载完再显示 */
+            box-shadow: 0 10px 60px rgba(0,0,0,0.8);
         }
 
         h3 { 
@@ -46,25 +33,22 @@
         }
         .btn:hover { filter: brightness(1.2); }
 
-        .control { margin-bottom: 10px; }
+        .control { margin-bottom: 12px; }
         label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 3px; }
-        input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffd700; height: 2px; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffd700; height: 3px; }
         input[type="file"] { width: 100%; font-size: 10px; color: #888; }
         input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
-        canvas { display: block; }
+        
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #ffd700;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
+        }
     </style>
-
-    <!-- 1. 错误捕获脚本 (最先运行) -->
-    <script>
-        window.onerror = function(msg, url, line) {
-            const el = document.getElementById('error-log');
-            if(el) el.innerText = "ERROR: " + msg + " (Line " + line + ")";
-        };
-    </script>
     
-    <!-- 2. 更稳健的 Import Map -->
     <script type="importmap">
         {
             "imports": {
@@ -76,18 +60,15 @@
 </head>
 <body>
 
-<div id="loading">
-    <div>INITIALIZING HD ENGINE...</div>
-    <div id="error-log"></div>
-</div>
+<div id="loading">INITIALIZING FILM ENGINE...</div>
 
 <div id="ui">
     <div onclick="document.getElementById('ui').style.opacity = '0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
-    <h3>HD PORTRAIT GALAXY</h3>
+    <h3>FILM GRAIN PORTRAIT</h3>
     
     <div class="control">
-        <label>UPLOAD PHOTO / 上传照片 (PNG推荐)</label>
+        <label>UPLOAD PHOTO / 上传照片</label>
         <input type="file" id="imageInput" accept="image/*,.svg">
         <button class="btn" id="btnGen">ACTIVATE / 显现</button>
     </div>
@@ -95,22 +76,23 @@
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
     <div class="control">
-        <label>IMAGE DETAIL / 清晰度 (拉大最清晰)</label>
+        <label>RESOLUTION / 清晰度 (消除网格)</label>
         <input type="range" id="densityRange" min="1" max="5" step="1" value="4" oninput="processSourceWithCache()">
     </div>
 
     <div class="control">
-        <label>PARTICLE SIZE / 粒子大小 (拉小最细腻)</label>
-        <input type="range" id="pSizeRange" min="0.01" max="0.15" step="0.01" value="0.04" oninput="updateMaterial()">
+        <label>PARTICLE SIZE / 粒子大小 (调小防糊)</label>
+        <input type="range" id="pSizeRange" min="0.01" max="0.10" step="0.005" value="0.03" oninput="updateMaterial()">
     </div>
 
     <div class="control">
-        <label>BRIGHTNESS / 亮度 (防止过曝)</label>
-        <input type="range" id="brightnessRange" min="5" max="30" value="12" oninput="updateColors()">
+        <label>EXPOSURE / 曝光度 (防止太亮)</label>
+        <!-- 范围改小，防止过曝 -->
+        <input type="range" id="brightnessRange" min="5" max="20" value="10" oninput="updateColors()">
     </div>
 
     <div class="control">
-        <label>IMAGE HEIGHT / 悬浮高度</label>
+        <label>HEIGHT / 悬浮高度</label>
         <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
     </div>
 
@@ -124,7 +106,6 @@
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
 </div>
 
-<!-- 3. 核心脚本 (data-cfasync="false" 防止 Cloudflare 干扰) -->
 <script type="module" data-cfasync="false">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -132,10 +113,6 @@
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    // --- 启动检查 ---
-    const loadingEl = document.getElementById('loading');
-    const uiEl = document.getElementById('ui');
-    
     // --- 1. 场景初始化 ---
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x000000, 0.02);
@@ -143,10 +120,9 @@
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 10, 20);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" }); // 开启抗锯齿
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ReinhardToneMapping;
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -154,11 +130,12 @@
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
 
+    // 光晕 (Bloom) - 参数调柔和
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    bloomPass.threshold = 0;
-    bloomPass.strength = 0.8;
-    bloomPass.radius = 0.3;
+    bloomPass.threshold = 0.1; // 阈值调高，只让亮部发光
+    bloomPass.strength = 0.6;  // 强度减半
+    bloomPass.radius = 0.5;
 
     const composer = new EffectComposer(renderer);
     composer.addPass(renderScene);
@@ -229,17 +206,9 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 高清影像引擎 ---
+    // --- 4. 高清影像引擎 (Jitter Fix) ---
     
-    function patchSVG(svg) {
-        if (!svg.includes('width=') || !svg.includes('height=')) {
-            return svg.replace('<svg', '<svg width="1000" height="1000" ');
-        }
-        return svg;
-    }
-
     function processSource(src) {
-        // 无需 setStatus，直接控制台
         console.log("Loading image...");
         const img = new Image();
         img.onload = () => {
@@ -272,17 +241,27 @@
         const data = ctx2d.getImageData(0,0,w,h).data;
         const points = [];
         const colors = [];
-        const gap = 1; 
+        const gap = 1; // 逐像素
+
+        // 计算抖动幅度：像素越密，抖动越小
+        const jitterAmount = 0.8; 
 
         for(let y=0; y<h; y+=gap) {
             for(let x=0; x<w; x+=gap) {
                 const i = (y*w+x)*4;
                 const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                
                 if (a > 20) {
+                    // 【关键修复】加入随机抖动 (Jitter)
+                    // Math.random()-0.5 会产生 -0.5 到 0.5 的偏移
+                    // 这样粒子就不会死板地排列在整数坐标上，彻底打散网格
+                    const jX = (Math.random() - 0.5) * jitterAmount;
+                    const jY = (Math.random() - 0.5) * jitterAmount;
+
                     points.push({
-                        x: (x / w - 0.5) * 15, 
-                        y: -(y / h - 0.5) * 15 * (h/w), 
-                        z: 0 
+                        x: (x + jX - w/2) / (w/30), // 归一化坐标
+                        y: -(y + jY - h/2) / (w/30), 
+                        z: (Math.random() - 0.5) * 0.1 
                     });
                     colors.push({ r: r/255, g: g/255, b: b/255 });
                 }
@@ -290,7 +269,7 @@
         }
         
         if(points.length > 0) createImgParticles(points, colors);
-        else alert("无内容！请确保图片不是全透明的。");
+        else alert("无内容！");
     };
 
     function createImgParticles(points, colorData) {
@@ -320,8 +299,10 @@
             size: parseFloat(document.getElementById('pSizeRange').value),
             sizeAttenuation: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            vertexColors: true
+            blending: THREE.AdditiveBlending, // 保持叠加，但依靠低透明度
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.7 // 【关键修复】降低全局透明度，防止过曝
         });
 
         imgPoints = new THREE.Points(imgGeometry, imgMaterial);
@@ -330,6 +311,7 @@
     
     function applyBrightnessToParticle(index, colorArray) {
         const base = originalColors[index];
+        // 亮度除以 10，让数值落在 0.5 - 2.0 之间，而不是之前的 5 - 30
         const boost = parseFloat(document.getElementById('brightnessRange').value) / 10;
         const i3 = index * 3;
         colorArray[i3] = base.r * boost;
@@ -358,17 +340,17 @@
 
     // --- 5. 循环 ---
     generateGalaxy();
-    
-    // 强制移除加载页（成功加载）
-    loadingEl.style.opacity = 0;
-    setTimeout(() => { loadingEl.remove(); uiEl.style.display = 'block'; }, 500);
+    document.getElementById('loading').style.opacity = 0;
+    setTimeout(() => document.getElementById('loading').remove(), 500);
 
     const clock = new THREE.Clock();
 
     function tick() {
         const elapsedTime = clock.getElapsedTime();
 
-        if(galaxyPoints) galaxyPoints.rotation.y = elapsedTime * 0.05;
+        if(galaxyPoints) {
+            galaxyPoints.rotation.y = elapsedTime * 0.05;
+        }
         
         if(imgPoints) {
             imgPoints.quaternion.copy(camera.quaternion);
@@ -390,24 +372,17 @@
     });
 
     window.addEventListener('keydown', (e) => {
-        if(e.key.toLowerCase() === 'h') uiEl.style.opacity = uiEl.style.opacity === '0' ? '1' : '0';
+        if(e.key.toLowerCase() === 'h') {
+            document.getElementById('ui').style.opacity = document.getElementById('ui').style.opacity === '0' ? '1' : '0';
+        }
     });
 
     document.getElementById('btnGen').addEventListener('click', () => {
         const file = document.getElementById('imageInput').files[0];
         if(!file) return alert("请选择图片");
-        
         const reader = new FileReader();
-        if(file.type.includes('svg')) {
-            reader.readAsText(file);
-            reader.onload = e => {
-                const url = URL.createObjectURL(new Blob([patchSVG(e.target.result)], {type:'image/svg+xml'}));
-                processSource(url);
-            };
-        } else {
-            reader.readAsDataURL(file);
-            reader.onload = e => processSource(e.target.result);
-        }
+        reader.readAsDataURL(file);
+        reader.onload = e => processSource(e.target.result);
     });
 
 </script>
