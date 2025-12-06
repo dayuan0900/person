@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
+    <title>Mani - True Image</title>
+    <style>
+        body { 
+            margin: 0; overflow: hidden; background: #000; 
+            font-family: 'Segoe UI', monospace; user-select: none; 
+        }
+
+        #ui {
+            position: absolute; top: 20px; left: 20px; width: 280px;
+            background: rgba(15, 12, 10, 0.85); /* 深褐金背景 */
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,215,0,0.25);
+            border-radius: 12px;
+            padding: 15px; color: #fff; z-index: 100;
+            box-shadow: 0 10px 50px rgba(0,0,0,0.8);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; transform: translateX(-50px); }
+
+        h3 { 
+            margin: 0 0 10px 0; color: #ffd700; font-size: 14px; 
+            letter-spacing: 2px; text-align: center; text-transform: uppercase;
+            text-shadow: 0 0 15px rgba(255,215,0,0.4);
+        }
+
+        #status {
+            font-size: 10px; color: #aaa; text-align: center; margin-bottom: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;
+            height: 15px; white-space: nowrap; overflow: hidden;
+        }
+
+        .btn {
+            width: 100%; padding: 12px; border: none; border-radius: 4px;
+            background: linear-gradient(135deg, #ffd700, #b8860b);
+            color: #000; font-weight: bold; cursor: pointer;
+            margin-top: 5px; font-size: 12px; letter-spacing: 1px;
+        }
+        .btn:hover { filter: brightness(1.1); box-shadow: 0 0 15px rgba(255,215,0,0.3); }
+
+        .control { margin-bottom: 10px; }
+        label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 3px; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffd700; height: 2px; }
+        input[type="file"] { width: 100%; font-size: 10px; color: #888; }
+        input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; }
+
+        .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
+        
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex;
+            justify-content: center; align-items: center; color: #ffd700;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
+        }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div id="loading">INITIALIZING ENGINE...</div>
+
+<div id="ui">
+    <!-- 关闭按钮 -->
+    <div onclick="toggleUI()" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
+
+    <h3>TRUE IMAGE GALAXY</h3>
+    <div id="status">系统就绪</div>
+    
+    <div class="control">
+        <label>UPLOAD PHOTO / 上传照片 (PNG/SVG)</label>
+        <input type="file" id="imageInput" accept="image/*,.svg">
+        <button class="btn" id="btnGen">ACTIVATE / 显现</button>
+    </div>
+
+    <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
+
+    <!-- 图像调节区 -->
+    <div class="control">
+        <label>IMG BRIGHTNESS / 照片亮度 (增益)</label>
+        <input type="range" id="brightnessRange" min="10" max="30" value="15" oninput="updateParticlesColor()">
+    </div>
+
+    <div class="control">
+        <label>IMG DENSITY / 照片精细度</label>
+        <input type="range" id="densityRange" min="1" max="5" step="1" value="3" oninput="resampleImage()">
+    </div>
+
+    <div class="control">
+        <label>IMG SIZE / 照片大小</label>
+        <input type="range" id="textSize" min="0.5" max="3.0" value="1.5" step="0.1">
+    </div>
+
+    <div class="control">
+        <label>IMG HEIGHT / 悬浮高度</label>
+        <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
+    </div>
+
+    <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
+
+    <!-- 背景调节区 -->
+    <div class="control">
+        <label>GALAXY CORE / 星系颜色</label>
+        <input type="color" id="colorInside" value="#ff6030">
+    </div>
+    
+    <div class="control">
+        <label>GALAXY EDGE / 边缘颜色</label>
+        <input type="color" id="colorOutside" value="#1b3984">
+    </div>
+
+    <div class="hint">按 <b>H</b> 键隐藏/显示界面</div>
+</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    const statusEl = document.getElementById('status');
+    function setStatus(msg, isError=false) {
+        statusEl.innerText = msg;
+        statusEl.style.color = isError ? '#ff5555' : '#888';
+    }
+
+    // --- 1. 场景初始化 ---
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.015);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 12, 25); 
+
+    const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.3;
+
+    // 光晕 (Bloom)
+    const renderScene = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+    bloomPass.threshold = 0;
+    bloomPass.strength = 1.2; 
+    bloomPass.radius = 0.5;
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+
+    // --- 2. 变量 ---
+    let galaxyPoints = null;
+    let textPoints = null;
+    let textGeometry = null;
+    let textMaterial = null;
+    
+    // 缓存原始颜色数据，用于调节亮度
+    let originalColors = [];
+
+    const parameters = {
+        count: 80000, 
+        size: 0.03,
+        radius: 30,
+        branches: 3,
+        spin: 1,
+        randomness: 0.2,
+        randomnessPower: 3,
+        insideColor: '#ff6030',
+        outsideColor: '#1b3984',
+        brightnessBoost: 1.5 // 亮度增益系数
+    };
+
+    // --- 3. 星系生成 ---
+    function generateGalaxy() {
+        if (galaxyPoints !== null) {
+            galaxyGeometry.dispose();
+            galaxyMaterial.dispose();
+            scene.remove(galaxyPoints);
+        }
+
+        const galaxyGeometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(parameters.count * 3);
+        const colors = new Float32Array(parameters.count * 3);
+
+        const colorInside = new THREE.Color(parameters.insideColor);
+        const colorOutside = new THREE.Color(parameters.outsideColor);
+
+        for (let i = 0; i < parameters.count; i++) {
+            const i3 = i * 3;
+            const radius = Math.random() * parameters.radius;
+            const spinAngle = radius * parameters.spin;
+            const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
+
+            const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+            const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+            const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+
+            positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+            positions[i3 + 1] = randomY * 1.2; 
+            positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+            const mixedColor = colorInside.clone();
+            mixedColor.lerp(colorOutside, radius / parameters.radius);
+
+            colors[i3] = mixedColor.r;
+            colors[i3 + 1] = mixedColor.g;
+            colors[i3 + 2] = mixedColor.b;
+        }
+
+        galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        galaxyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const galaxyMaterial = new THREE.PointsMaterial({
+            size: parameters.size,
+            sizeAttenuation: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexColors: true
+        });
+
+        galaxyPoints = new THREE.Points(galaxyGeometry, galaxyMaterial);
+        scene.add(galaxyPoints);
+    }
+
+    // --- 4. 全彩图像引擎 (Full Color Engine) ---
+    
+    // 仍然保留 SVG 修复功能，以防万一
+    function patchSVG(svg) {
+        if (!svg.includes('width=') || !svg.includes('height=')) {
+            return svg.replace('<svg', '<svg width="2000" height="2000" ');
+        }
+        return svg;
+    }
+
+    function processSource(src) {
+        setStatus("读取图像...");
+        const img = new Image();
+        
+        img.onload = () => {
+            setStatus("解析色彩...");
+            // 使用适中的画布尺寸，平衡性能与画质
+            const w = 1000; const h = 1000;
+            const canvas2d = document.createElement('canvas');
+            canvas2d.width = w; canvas2d.height = h;
+            const ctx2d = canvas2d.getContext('2d');
+            
+            // 清空画布 (透明底)
+            ctx2d.clearRect(0, 0, w, h);
+            
+            const aspect = img.width/img.height||1;
+            let drawW = w; 
+            let drawH = w/aspect;
+            if(drawH > h) { drawH = h; drawW = h*aspect; }
+            
+            // 居中绘制
+            ctx2d.drawImage(img, (w-drawW)/2, (h-drawH)/2, drawW, drawH);
+            
+            const data = ctx2d.getImageData(0,0,w,h).data;
+            const points = [];
+            const colors = [];
+            
+            // 密度控制
+            const densityVal = parseInt(document.getElementById('densityRange').value);
+            const gap = Math.max(1, 6 - densityVal); 
+
+            for(let y=0; y<h; y+=gap) {
+                for(let x=0; x<w; x+=gap) {
+                    const i = (y*w+x)*4;
+                    const r = data[i];
+                    const g = data[i+1];
+                    const b = data[i+2];
+                    const a = data[i+3];
+                    
+                    // 【核心】只读取不透明的像素
+                    if (a > 50) {
+                        points.push({
+                            x: (x / w - 0.5) * 20, 
+                            y: -(y / h - 0.5) * 20 * (h/w), 
+                            z: (Math.random() - 0.5) * 0.1 // 稍微一点厚度
+                        });
+                        // 存储原始颜色 (归一化到 0-1)
+                        colors.push({ r: r/255, g: g/255, b: b/255 });
+                    }
+                }
+            }
+            
+            if(points.length === 0) setStatus("图像全透明？请检查", true);
+            else {
+                setStatus("显现成功");
+                createTextParticles(points, colors);
+            }
+        };
+        img.onerror = () => setStatus("加载失败", true);
+        img.src = src;
+    }
+
+    function createTextParticles(points, colorData) {
+        if (textPoints !== null) {
+            textGeometry.dispose();
+            textMaterial.dispose();
+            scene.remove(textPoints);
+        }
+
+        const positions = new Float32Array(points.length * 3);
+        const colors = new Float32Array(points.length * 3);
+        
+        // 备份原始颜色数据供调节亮度使用
+        originalColors = colorData;
+
+        for(let i=0; i<points.length; i++) {
+            const i3 = i*3;
+            positions[i3] = points[i].x;
+            positions[i3+1] = points[i].y;
+            positions[i3+2] = points[i].z;
+            
+            // 初始上色
+            applyBrightnessToParticle(i, colors);
+        }
+
+        textGeometry = new THREE.BufferGeometry();
+        textGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        textGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        textMaterial = new THREE.PointsMaterial({
+            size: 0.06, 
+            sizeAttenuation: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexColors: true // 开启顶点颜色，实现全彩
+        });
+
+        textPoints = new THREE.Points(textGeometry, textMaterial);
+        scene.add(textPoints);
+    }
+    
+    // 亮度增益函数
+    function applyBrightnessToParticle(index, colorArray) {
+        const base = originalColors[index];
+        const boost = parseFloat(document.getElementById('brightnessRange').value) / 10;
+        
+        const i3 = index * 3;
+        colorArray[i3] = base.r * boost;
+        colorArray[i3+1] = base.g * boost;
+        colorArray[i3+2] = base.b * boost;
+    }
+
+    // 实时更新亮度
+    window.updateParticlesColor = function() {
+        if(!textGeometry) return;
+        const colors = textGeometry.attributes.color.array;
+        for(let i=0; i<originalColors.length; i++) {
+            applyBrightnessToParticle(i, colors);
+        }
+        textGeometry.attributes.color.needsUpdate = true;
+    };
+    
+    // 重新采样 (改变密度)
+    window.resampleImage = function() {
+        const file = document.getElementById('imageInput').files[0];
+        if(file) {
+            // 重新触发读取流程 (简化处理，直接重新读取流最稳)
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = e => processSource(e.target.result);
+        }
+    }
+
+    // --- 5. 动画循环 ---
+    generateGalaxy();
+    document.getElementById('loading').style.opacity = 0;
+    setTimeout(() => document.getElementById('loading').remove(), 500);
+
+    const clock = new THREE.Clock();
+
+    function tick() {
+        const elapsedTime = clock.getElapsedTime();
+
+        if(galaxyPoints) {
+            galaxyPoints.rotation.y = elapsedTime * 0.05;
+        }
+        
+        if(textPoints) {
+            textPoints.quaternion.copy(camera.quaternion);
+            
+            const height = parseFloat(document.getElementById('textHeight').value);
+            const scale = parseFloat(document.getElementById('textSize').value);
+            
+            textPoints.position.y = height + Math.sin(elapsedTime * 0.8) * 0.2;
+            textPoints.scale.set(scale, scale, scale);
+        }
+
+        controls.update();
+        composer.render();
+        requestAnimationFrame(tick);
+    }
+    tick();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // 显式暴露 toggleUI 函数
+    window.toggleUI = function() {
+        document.getElementById('ui').classList.toggle('hidden');
+    };
+
+    window.addEventListener('keydown', (e) => {
+        if(e.code === 'KeyH' || e.key.toLowerCase() === 'h') {
+            window.toggleUI();
+        }
+    });
+
+    document.getElementById('btnGen').addEventListener('click', () => {
+        const file = document.getElementById('imageInput').files[0];
+        if(!file) return setStatus("请选择图片", true);
+        
+        const reader = new FileReader();
+        if(file.type.includes('svg')) {
+            reader.readAsText(file);
+            reader.onload = e => {
+                const url = URL.createObjectURL(new Blob([patchSVG(e.target.result)], {type:'image/svg+xml'}));
+                processSource(url);
+            };
+        } else {
+            reader.readAsDataURL(file);
+            reader.onload = e => processSource(e.target.result);
+        }
+    });
+
+    const updateGalaxy = () => {
+        parameters.insideColor = document.getElementById('colorInside').value;
+        parameters.outsideColor = document.getElementById('colorOutside').value;
+        generateGalaxy();
+    };
+
+    document.getElementById('colorInside').addEventListener('input', updateGalaxy);
+    document.getElementById('colorOutside').addEventListener('input', updateGalaxy);
+
+</script>
+</body>
+</html>
