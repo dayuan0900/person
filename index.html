@@ -3,12 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;">
-    <title>Mani - HD Portrait</title>
+    <title>Mani - HD Portrait (Rescue)</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
             font-family: 'Segoe UI', monospace; user-select: none; 
+        }
+
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #ffca28;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
+        }
+        
+        #error-log {
+            color: #ff5555; font-size: 10px; margin-top: 10px; 
+            max-width: 80%; text-align: center;
         }
 
         #ui {
@@ -18,6 +29,7 @@
             border-radius: 12px;
             padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 50px rgba(0,0,0,0.8);
+            display: none; /* 加载完再显示 */
         }
 
         h3 { 
@@ -26,19 +38,13 @@
             text-shadow: 0 0 15px rgba(255,160,0,0.5);
         }
 
-        #status {
-            font-size: 10px; color: #aaa; text-align: center; margin-bottom: 12px;
-            border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;
-            height: 15px; white-space: nowrap; overflow: hidden;
-        }
-
         .btn {
             width: 100%; padding: 12px; border: none; border-radius: 4px;
             background: linear-gradient(135deg, #ffca28, #ff6f00);
             color: #000; font-weight: bold; cursor: pointer;
             margin-top: 5px; font-size: 12px; letter-spacing: 1px;
         }
-        .btn:hover { filter: brightness(1.2); box-shadow: 0 0 15px rgba(255,215,0,0.3); }
+        .btn:hover { filter: brightness(1.2); }
 
         .control { margin-bottom: 10px; }
         label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 3px; }
@@ -47,33 +53,38 @@
         input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
-        
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999; display: flex;
-            justify-content: center; align-items: center; color: #ffd700;
-            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
-        }
+        canvas { display: block; }
     </style>
+
+    <!-- 1. 错误捕获脚本 (最先运行) -->
+    <script>
+        window.onerror = function(msg, url, line) {
+            const el = document.getElementById('error-log');
+            if(el) el.innerText = "ERROR: " + msg + " (Line " + line + ")";
+        };
+    </script>
     
+    <!-- 2. 更稳健的 Import Map -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 </head>
 <body>
 
-<div id="loading">INITIALIZING HD ENGINE...</div>
+<div id="loading">
+    <div>INITIALIZING HD ENGINE...</div>
+    <div id="error-log"></div>
+</div>
 
 <div id="ui">
-    <div onclick="document.getElementById('ui').classList.add('hidden')" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
+    <div onclick="document.getElementById('ui').style.opacity = '0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
     <h3>HD PORTRAIT GALAXY</h3>
-    <div id="status">系统就绪</div>
     
     <div class="control">
         <label>UPLOAD PHOTO / 上传照片 (PNG推荐)</label>
@@ -83,7 +94,6 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 关键调节区 -->
     <div class="control">
         <label>IMAGE DETAIL / 清晰度 (拉大最清晰)</label>
         <input type="range" id="densityRange" min="1" max="5" step="1" value="4" oninput="processSourceWithCache()">
@@ -114,25 +124,24 @@
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
 </div>
 
-<script type="module">
+<!-- 3. 核心脚本 (data-cfasync="false" 防止 Cloudflare 干扰) -->
+<script type="module" data-cfasync="false">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    const statusEl = document.getElementById('status');
-    function setStatus(msg, isError=false) {
-        statusEl.innerText = msg;
-        statusEl.style.color = isError ? '#ff5555' : '#888';
-    }
-
+    // --- 启动检查 ---
+    const loadingEl = document.getElementById('loading');
+    const uiEl = document.getElementById('ui');
+    
     // --- 1. 场景初始化 ---
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x000000, 0.02);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 10, 20); // 拉近一点看细节
+    camera.position.set(0, 10, 20);
 
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -145,11 +154,10 @@
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
 
-    // 光晕 (Bloom) - 稍微调弱一点，防止糊
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
     bloomPass.threshold = 0;
-    bloomPass.strength = 0.8; // 降低强度，保留细节
+    bloomPass.strength = 0.8;
     bloomPass.radius = 0.3;
 
     const composer = new EffectComposer(renderer);
@@ -162,9 +170,8 @@
     let imgGeometry = null;
     let imgMaterial = null;
     
-    // 缓存原始图片数据，用于快速重采样
     let cachedImg = null;
-    let originalColors = []; // 存储 RGB
+    let originalColors = [];
 
     const parameters = {
         count: 60000, 
@@ -222,9 +229,8 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 高清影像引擎 (HD Engine) ---
+    // --- 4. 高清影像引擎 ---
     
-    // 如果是SVG，强制加尺寸
     function patchSVG(svg) {
         if (!svg.includes('width=') || !svg.includes('height=')) {
             return svg.replace('<svg', '<svg width="1000" height="1000" ');
@@ -233,72 +239,58 @@
     }
 
     function processSource(src) {
-        setStatus("读取图像...");
+        // 无需 setStatus，直接控制台
+        console.log("Loading image...");
         const img = new Image();
         img.onload = () => {
-            cachedImg = img; // 缓存图片对象
-            processSourceWithCache(); // 执行采样
+            cachedImg = img;
+            processSourceWithCache();
         };
-        img.onerror = () => setStatus("加载失败", true);
+        img.onerror = () => alert("加载失败，请检查文件");
         img.src = src;
     }
 
-    // 暴露给 window 以便滑块调用
     window.processSourceWithCache = function() {
         if (!cachedImg) return;
-        setStatus("高清重采样中...");
         
-        // 采样画布尺寸：
-        // 密度 5 = 1200px (非常清晰)
-        // 密度 1 = 400px (马赛克)
         const density = parseInt(document.getElementById('densityRange').value);
         const w = 400 + (density * 200); 
-        const h = w; // 简化为正方形画布，保持比例绘制
+        const h = w; 
 
         const canvas2d = document.createElement('canvas');
         canvas2d.width = w; canvas2d.height = h;
         const ctx2d = canvas2d.getContext('2d');
         
-        // 清空画布 (透明底)
         ctx2d.clearRect(0, 0, w, h);
         
         const aspect = cachedImg.width / cachedImg.height || 1;
         let dw = w, dh = w/aspect;
         if(dh > h) { dh = h; dw = h*aspect; }
         
-        // 居中绘制
         ctx2d.drawImage(cachedImg, (w-dw)/2, (h-dh)/2, dw, dh);
         
         const data = ctx2d.getImageData(0,0,w,h).data;
         const points = [];
         const colors = [];
-        
-        // 逐像素扫描 (gap=1)
         const gap = 1; 
 
         for(let y=0; y<h; y+=gap) {
             for(let x=0; x<w; x+=gap) {
                 const i = (y*w+x)*4;
                 const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-                
-                // 只保留不透明的像素
                 if (a > 20) {
                     points.push({
                         x: (x / w - 0.5) * 15, 
                         y: -(y / h - 0.5) * 15 * (h/w), 
-                        z: 0 // 扁平照片
+                        z: 0 
                     });
-                    // 存储归一化颜色
                     colors.push({ r: r/255, g: g/255, b: b/255 });
                 }
             }
         }
         
-        if(points.length === 0) setStatus("无内容", true);
-        else {
-            setStatus(`生成: ${points.length} 粒子`);
-            createImgParticles(points, colors);
-        }
+        if(points.length > 0) createImgParticles(points, colors);
+        else alert("无内容！请确保图片不是全透明的。");
     };
 
     function createImgParticles(points, colorData) {
@@ -310,22 +302,19 @@
 
         const positions = new Float32Array(points.length * 3);
         const colors = new Float32Array(points.length * 3);
-        
-        originalColors = colorData; // 备份原始色
+        originalColors = colorData;
 
         for(let i=0; i<points.length; i++) {
             const i3 = i*3;
             positions[i3] = points[i].x;
             positions[i3+1] = points[i].y;
             positions[i3+2] = points[i].z;
+            applyBrightnessToParticle(i, colors);
         }
 
         imgGeometry = new THREE.BufferGeometry();
         imgGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         imgGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-        // 初始上色
-        window.updateColors(); 
 
         imgMaterial = new THREE.PointsMaterial({
             size: parseFloat(document.getElementById('pSizeRange').value),
@@ -335,4 +324,92 @@
             vertexColors: true
         });
 
-     
+        imgPoints = new THREE.Points(imgGeometry, imgMaterial);
+        scene.add(imgPoints);
+    }
+    
+    function applyBrightnessToParticle(index, colorArray) {
+        const base = originalColors[index];
+        const boost = parseFloat(document.getElementById('brightnessRange').value) / 10;
+        const i3 = index * 3;
+        colorArray[i3] = base.r * boost;
+        colorArray[i3+1] = base.g * boost;
+        colorArray[i3+2] = base.b * boost;
+    }
+
+    window.updateColors = function() {
+        if(!imgGeometry) return;
+        const colorAttr = imgGeometry.attributes.color.array;
+        for(let i=0; i<originalColors.length; i++) {
+            applyBrightnessToParticle(i, colorAttr);
+        }
+        imgGeometry.attributes.color.needsUpdate = true;
+    };
+
+    window.updateMaterial = function() {
+        if(imgMaterial) imgMaterial.size = parseFloat(document.getElementById('pSizeRange').value);
+    };
+
+    window.updateGalaxy = function() {
+        parameters.insideColor = document.getElementById('colorInside').value;
+        parameters.outsideColor = document.getElementById('colorOutside').value;
+        generateGalaxy();
+    };
+
+    // --- 5. 循环 ---
+    generateGalaxy();
+    
+    // 强制移除加载页（成功加载）
+    loadingEl.style.opacity = 0;
+    setTimeout(() => { loadingEl.remove(); uiEl.style.display = 'block'; }, 500);
+
+    const clock = new THREE.Clock();
+
+    function tick() {
+        const elapsedTime = clock.getElapsedTime();
+
+        if(galaxyPoints) galaxyPoints.rotation.y = elapsedTime * 0.05;
+        
+        if(imgPoints) {
+            imgPoints.quaternion.copy(camera.quaternion);
+            const height = parseFloat(document.getElementById('textHeight').value);
+            imgPoints.position.y = height + Math.sin(elapsedTime * 0.5) * 0.2;
+        }
+
+        controls.update();
+        composer.render();
+        requestAnimationFrame(tick);
+    }
+    tick();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.key.toLowerCase() === 'h') uiEl.style.opacity = uiEl.style.opacity === '0' ? '1' : '0';
+    });
+
+    document.getElementById('btnGen').addEventListener('click', () => {
+        const file = document.getElementById('imageInput').files[0];
+        if(!file) return alert("请选择图片");
+        
+        const reader = new FileReader();
+        if(file.type.includes('svg')) {
+            reader.readAsText(file);
+            reader.onload = e => {
+                const url = URL.createObjectURL(new Blob([patchSVG(e.target.result)], {type:'image/svg+xml'}));
+                processSource(url);
+            };
+        } else {
+            reader.readAsDataURL(file);
+            reader.onload = e => processSource(e.target.result);
+        }
+    });
+
+</script>
+</body>
+</html>
