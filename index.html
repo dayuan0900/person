@@ -3,26 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Absolute Fix</title>
+    <title>Mani - Final Rescue</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', monospace; user-select: none; }
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; user-select: none; }
         
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(10, 8, 5, 0.95);
+            background: rgba(12, 10, 8, 0.95);
             border: 1px solid rgba(255,180,0,0.3);
             border-radius: 12px;
             padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 60px rgba(0,0,0,0.9);
             max-height: 90vh; overflow-y: auto;
+            display: none; /* 默认隐藏，加载成功显示 */
         }
+        
         #ui::-webkit-scrollbar { width: 4px; }
         #ui::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
 
         h3 { 
-            margin: 0 0 15px 0; color: #ffb700; font-size: 14px; 
+            margin: 0 0 12px 0; color: #ffb700; font-size: 14px; 
             letter-spacing: 2px; text-align: center; text-transform: uppercase;
-            text-shadow: 0 0 15px rgba(255,183,0,0.4);
+            text-shadow: 0 0 10px rgba(255,183,0,0.3);
             border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;
         }
 
@@ -39,35 +41,40 @@
             color: #000; font-weight: bold; cursor: pointer;
             margin-top: 5px; font-size: 12px;
         }
-        .btn:hover { filter: brightness(1.2); }
+        .btn:hover { filter: brightness(1.1); }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 10px; }
         
         #loading {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999; display: flex;
+            background: #000; z-index: 999; display: flex; flex-direction: column;
             justify-content: center; align-items: center; color: #ffb700;
             font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
         }
+        #error-log { color: #ff5555; margin-top: 10px; font-size: 10px; }
     </style>
     
+    <!-- 1. 换回 unpkg 源 (最稳) -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://esm.sh/three@0.160.0",
-                "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 </head>
 <body>
 
-<div id="loading">INITIALIZING...</div>
+<div id="loading">
+    <div>SYSTEM STARTING...</div>
+    <div id="error-log"></div>
+</div>
 
 <div id="ui">
     <div id="btnClose" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
-    <h3>SUMERU GALAXY</h3>
+    <h3>GALAXY CONTROL</h3>
     
     <div class="control">
         <label>UPLOAD / 上传法相</label>
@@ -95,23 +102,19 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:15px 0;"></div>
 
-    <!-- 星系参数 (修复版) -->
+    <!-- 星系参数 -->
     <div class="control">
         <label>GALAXY SIZE / 扩散范围</label>
-        <!-- 把这个找回来了，防止报错 -->
-        <input type="range" id="galRadius" min="10" max="60" value="30">
+        <input type="range" id="galRadius" min="10" max="80" value="30">
     </div>
-
     <div class="control">
         <label>GALAXY THICKNESS / 中间厚度</label>
         <input type="range" id="galThick" min="0" max="50" value="25">
     </div>
-    
     <div class="control">
         <label>GALAXY MIST / 雾化程度</label>
         <input type="range" id="galRandom" min="0" max="30" value="5">
     </div>
-
     <div class="control">
         <label>GALAXY TWIST / 旋绕形状</label>
         <input type="range" id="galSpin" min="0" max="50" value="10">
@@ -128,6 +131,22 @@
 
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
 </div>
+
+<script>
+    // 错误捕获显示
+    window.onerror = function(msg) {
+        document.getElementById('error-log').innerText = "ERROR: " + msg;
+    };
+    // 5秒强制进系统 (防止卡死)
+    setTimeout(() => {
+        const load = document.getElementById('loading');
+        if(load.style.opacity !== '0') {
+            load.style.opacity = 0;
+            setTimeout(()=>load.remove(), 500);
+            document.getElementById('ui').style.display = 'block';
+        }
+    }, 5000);
+</script>
 
 <script type="module">
     import * as THREE from 'three';
@@ -151,7 +170,7 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = -0.5; // 右旋
+    controls.autoRotateSpeed = -0.5;
 
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
@@ -172,7 +191,7 @@
     let originalColors = [];
 
     const parameters = {
-        count: 80000, // 粒子数
+        count: 60000, 
         radius: 30,
         branches: 3,
         spin: 1,
@@ -187,7 +206,7 @@
         brightness: 1.0
     };
 
-    // --- 3. 须弥金轮生成 (Galaxy) ---
+    // --- 3. 星系生成 ---
     function generateGalaxy() {
         if (galaxyPoints !== null) {
             galaxyGeometry.dispose();
@@ -206,13 +225,12 @@
             const i3 = i * 3;
             const radius = Math.random() * parameters.radius;
             
-            // 右旋
             const spinAngle = -radius * parameters.spin; 
             const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
 
             const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
             
-            // 厚度衰减
+            // 厚度算法
             let thicknessFalloff = 1 - (radius / parameters.radius);
             thicknessFalloff = Math.max(0, Math.pow(thicknessFalloff, 1.5));
             const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.thickness * thicknessFalloff * 2.0; 
@@ -346,21 +364,17 @@
         colorArray[i3+2] = Math.min(1, base.b * boost);
     }
 
-    // --- 5. 稳健事件绑定 (Fix Crash) ---
+    // --- 5. 事件绑定 (稳健版) ---
     function updateGalaxyParams() {
-        // 安全获取 DOM 元素的值，防止 null 报错
-        const getVal = (id) => parseFloat(document.getElementById(id)?.value || 0);
-        
-        parameters.radius = getVal('galRadius') || 30; // 默认值兜底
-        parameters.thickness = getVal('galThick') / 10;
-        parameters.randomness = getVal('galRandom') / 10;
-        parameters.spin = getVal('galSpin') / 10;
+        parameters.radius = parseFloat(document.getElementById('galRadius').value || 30);
+        parameters.randomness = parseFloat(document.getElementById('galRandom').value) / 10;
+        parameters.spin = parseFloat(document.getElementById('galSpin').value) / 10;
+        parameters.thickness = parseFloat(document.getElementById('galThick').value) / 10;
         parameters.insideColor = document.getElementById('colorInside').value;
         parameters.outsideColor = document.getElementById('colorOutside').value;
         generateGalaxy();
     }
 
-    // 绑定所有星系滑块
     document.getElementById('galRadius').addEventListener('input', updateGalaxyParams);
     document.getElementById('galThick').addEventListener('input', updateGalaxyParams);
     document.getElementById('galRandom').addEventListener('input', updateGalaxyParams);
@@ -368,7 +382,6 @@
     document.getElementById('colorInside').addEventListener('input', updateGalaxyParams);
     document.getElementById('colorOutside').addEventListener('input', updateGalaxyParams);
 
-    // 绑定法相
     document.getElementById('pSizeRange').addEventListener('input', function() {
         if(imgMaterial) imgMaterial.size = parseFloat(this.value);
     });
@@ -399,4 +412,38 @@
     // --- 6. 启动 ---
     generateGalaxy();
     document.getElementById('loading').style.opacity = 0;
-    setTimeout(() => document.getElementById('loadi
+    setTimeout(() => {
+        const load = document.getElementById('loading');
+        if(load) load.remove();
+        document.getElementById('ui').style.display = 'block';
+    }, 500);
+
+    const clock = new THREE.Clock();
+
+    function tick() {
+        const elapsedTime = clock.getElapsedTime();
+
+        if(galaxyPoints) galaxyPoints.rotation.y = -elapsedTime * 0.05;
+        
+        if(imgPoints) {
+            imgPoints.quaternion.copy(camera.quaternion);
+            imgPoints.position.y = parameters.imgHeight + Math.sin(elapsedTime * 0.5) * 0.2;
+            imgPoints.scale.setScalar(parameters.imgScale);
+        }
+
+        controls.update();
+        composer.render();
+        requestAnimationFrame(tick);
+    }
+    tick();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>
