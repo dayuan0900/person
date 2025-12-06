@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Galaxy Control</title>
+    <title>Mani - Absolute Control</title>
     <style>
-        body { 
-            margin: 0; overflow: hidden; background: #000; 
-            font-family: 'Segoe UI', monospace; user-select: none; 
-        }
-
+        body { margin: 0; overflow: hidden; background: #000; font-family: monospace; user-select: none; }
+        
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
             background: rgba(15, 12, 10, 0.95);
@@ -29,19 +26,19 @@
             text-shadow: 0 0 10px rgba(255,183,0,0.3);
         }
 
-        .btn {
-            width: 100%; padding: 10px; border: none; border-radius: 4px;
-            background: linear-gradient(135deg, #ffb700, #ff6f00);
-            color: #000; font-weight: bold; cursor: pointer;
-            margin-top: 5px; font-size: 12px;
-        }
-        .btn:hover { filter: brightness(1.1); }
-
         .control { margin-bottom: 12px; }
         label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 4px; }
         input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffb700; height: 3px; }
         input[type="file"] { width: 100%; font-size: 10px; color: #888; }
         input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; cursor: pointer; }
+
+        .btn {
+            width: 100%; padding: 10px; border: none; border-radius: 4px;
+            background: linear-gradient(135deg, #ffb700, #ff6f00);
+            color: #000; font-weight: bold; cursor: pointer;
+            margin-top: 5px;
+        }
+        .btn:hover { filter: brightness(1.1); }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
         
@@ -67,7 +64,7 @@
 <div id="loading">INITIALIZING...</div>
 
 <div id="ui">
-    <div id="closeBtn" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
+    <div id="btnClose" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
     <h3>GALAXY CONTROL</h3>
     
@@ -79,17 +76,17 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 法相控制 -->
+    <!-- 这里的 ID 非常重要，JS 会通过 ID 找到它们 -->
     <div class="control">
-        <label>SIZE / 大小</label>
+        <label>SIZE / 法相大小</label>
         <input type="range" id="imgScale" min="0.5" max="3.0" step="0.1" value="1.0">
     </div>
     <div class="control">
-        <label>HEIGHT / 高度</label>
+        <label>HEIGHT / 悬浮高度</label>
         <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
     </div>
     <div class="control">
-        <label>SOLIDITY / 填充度 (消黑点)</label>
+        <label>SOLIDITY / 填充度</label>
         <input type="range" id="pSizeRange" min="0.05" max="0.30" step="0.01" value="0.12">
     </div>
     <div class="control">
@@ -99,7 +96,7 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 星云控制 (已修复) -->
+    <!-- 星云控制 -->
     <div class="control">
         <label>GALAXY SIZE / 扩散范围</label>
         <input type="range" id="galRadius" min="10" max="80" value="30">
@@ -180,7 +177,7 @@
         outsideColor: '#1b3984'
     };
 
-    // --- 3. 星系生成 (核心逻辑) ---
+    // --- 3. 星系生成 ---
     function generateGalaxy() {
         if (galaxyPoints !== null) {
             galaxyGeometry.dispose();
@@ -199,7 +196,6 @@
             const i3 = i * 3;
             const radius = Math.random() * parameters.radius;
             
-            // 旋绕与雾化计算
             const spinAngle = radius * parameters.spin;
             const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
 
@@ -232,23 +228,31 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 影像引擎 (保持不变) ---
+    // --- 4. 影像引擎 ---
+    function patchSVG(svg) {
+        if (!svg.includes('width=') || !svg.includes('height=')) {
+            return svg.replace('<svg', '<svg width="2000" height="2000" ');
+        }
+        return svg;
+    }
+
     function processSource(src) {
         const img = new Image();
         img.onload = () => {
             cachedImg = img;
             processSourceWithCache();
         };
-        img.onerror = () => alert("加载失败");
+        img.onerror = () => alert("图片加载失败");
         img.src = src;
     }
 
-    window.processSourceWithCache = function() {
+    function processSourceWithCache() {
         if (!cachedImg) return;
         const w = 600; const h = 600; 
         const canvas2d = document.createElement('canvas');
         canvas2d.width = w; canvas2d.height = h;
         const ctx2d = canvas2d.getContext('2d');
+        
         ctx2d.clearRect(0, 0, w, h);
         const aspect = cachedImg.width / cachedImg.height || 1;
         let dw = w, dh = w/aspect;
@@ -277,9 +281,10 @@
                 }
             }
         }
+        
         if(points.length > 0) createImgParticles(points, colors);
         else alert("无内容！");
-    };
+    }
 
     function createImgParticles(points, colorData) {
         if (imgPoints !== null) {
@@ -326,20 +331,12 @@
         colorArray[i3+2] = Math.min(1, base.b * boost);
     }
 
-    // --- 5. 事件绑定 (关键修复) ---
-    // 使用 addEventListener 确保 JS 能够捕获事件，不再依赖 HTML 内联
-    
-    function updateColors() {
-        if(!imgGeometry) return;
-        const colorAttr = imgGeometry.attributes.color.array;
-        for(let i=0; i<originalColors.length; i++) applyBrightnessToParticle(i, colorAttr);
-        imgGeometry.attributes.color.needsUpdate = true;
-    }
+    // ============================================
+    // --- 5. 事件绑定区 (Event Binding Fix) ---
+    // 这里不再依赖 HTML 里的 oninput，而是手动绑定
+    // ============================================
 
-    function updateMaterial() {
-        if(imgMaterial) imgMaterial.size = parseFloat(document.getElementById('pSizeRange').value);
-    }
-
+    // 绑定更新星系的函数
     function updateGalaxyParams() {
         parameters.radius = parseFloat(document.getElementById('galRadius').value);
         parameters.randomness = parseFloat(document.getElementById('galRandom').value) / 10;
@@ -349,37 +346,53 @@
         generateGalaxy();
     }
 
-    // 绑定所有滑块事件
-    document.getElementById('pSizeRange').addEventListener('input', updateMaterial);
-    document.getElementById('brightnessRange').addEventListener('input', updateColors);
-    
-    // 星系滑块绑定
     document.getElementById('galRadius').addEventListener('input', updateGalaxyParams);
     document.getElementById('galRandom').addEventListener('input', updateGalaxyParams);
     document.getElementById('galSpin').addEventListener('input', updateGalaxyParams);
     document.getElementById('colorInside').addEventListener('input', updateGalaxyParams);
     document.getElementById('colorOutside').addEventListener('input', updateGalaxyParams);
 
-    // 按钮与键盘
-    document.getElementById('closeBtn').addEventListener('click', () => {
-        document.getElementById('ui').style.opacity = '0';
-    });
-    
-    window.addEventListener('keydown', (e) => {
-        if(e.key.toLowerCase() === 'h') {
-            document.getElementById('ui').style.opacity = document.getElementById('ui').style.opacity === '0' ? '1' : '0';
-        }
+    // 绑定法相控制
+    document.getElementById('pSizeRange').addEventListener('input', function() {
+        if(imgMaterial) imgMaterial.size = parseFloat(this.value);
     });
 
+    document.getElementById('brightnessRange').addEventListener('input', function() {
+        if(!imgGeometry) return;
+        const colorAttr = imgGeometry.attributes.color.array;
+        for(let i=0; i<originalColors.length; i++) applyBrightnessToParticle(i, colorAttr);
+        imgGeometry.attributes.color.needsUpdate = true;
+    });
+
+    // 绑定按钮
     document.getElementById('btnGen').addEventListener('click', () => {
         const file = document.getElementById('imageInput').files[0];
         if(!file) return alert("请选择图片");
         const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = e => processSource(e.target.result);
+        if(file.type.includes('svg')) {
+            reader.readAsText(file);
+            reader.onload = e => {
+                const url = URL.createObjectURL(new Blob([patchSVG(e.target.result)], {type:'image/svg+xml'}));
+                processSource(url);
+            };
+        } else {
+            reader.readAsDataURL(file);
+            reader.onload = e => processSource(e.target.result);
+        }
     });
 
-    // --- 6. 循环与启动 ---
+    document.getElementById('btnClose').addEventListener('click', () => {
+        document.getElementById('ui').style.opacity = '0';
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.key.toLowerCase() === 'h') {
+            const ui = document.getElementById('ui');
+            ui.style.opacity = ui.style.opacity === '0' ? '1' : '0';
+        }
+    });
+
+    // --- 6. 循环启动 ---
     generateGalaxy();
     document.getElementById('loading').style.opacity = 0;
     setTimeout(() => document.getElementById('loading').remove(), 500);
