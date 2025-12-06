@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - 3D Real Model Final</title>
+    <title>Mani - 3D Serenity</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; font-family: monospace; user-select: none; }
         
@@ -42,24 +42,17 @@
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 10px; }
         
-        /* 进度条加载遮罩 */
         #loading {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.95); z-index: 999; display: flex; flex-direction: column;
+            background: rgba(0,0,0,0.95); z-index: 999; display: flex; flex-direction: column;
             justify-content: center; align-items: center; color: #ffb700;
-            transition: opacity 0.5s;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
         }
-        
-        .loading-text { font-size: 12px; letter-spacing: 2px; margin-bottom: 15px; }
-        
-        /* 进度条容器 */
-        .progress-container {
-            width: 200px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;
-        }
-        /* 进度条本体 */
         .progress-bar {
-            width: 0%; height: 100%; background: #00eaff; 
-            box-shadow: 0 0 10px #00eaff; transition: width 0.1s;
+            width: 200px; height: 4px; background: #333; margin-top: 10px; border-radius: 2px;
+        }
+        .progress-fill {
+            width: 0%; height: 100%; background: #ffb700; transition: width 0.2s;
         }
     </style>
     
@@ -75,10 +68,8 @@
 <body>
 
 <div id="loading">
-    <div class="loading-text" id="loadText">INITIALIZING ENGINE...</div>
-    <div class="progress-container">
-        <div class="progress-bar" id="progressBar"></div>
-    </div>
+    <div id="loadText">INITIALIZING ENGINE...</div>
+    <div class="progress-bar"><div class="progress-fill" id="pFill"></div></div>
 </div>
 
 <div id="ui">
@@ -100,12 +91,16 @@
         <input type="range" id="modScale" min="0.1" max="10.0" step="0.1" value="1.0">
     </div>
     <div class="control">
-        <label>MODEL HEIGHT / 悬浮高度</label>
+        <label>MODEL HEIGHT / 上下位置</label>
         <input type="range" id="modHeight" min="-10" max="10" value="0" step="0.5">
     </div>
     <div class="control">
-        <label>PARTICLE SIZE / 粒子粗细</label>
-        <input type="range" id="pSizeRange" min="0.01" max="0.2" step="0.01" value="0.03">
+        <label>OPACITY / 透明度 (太亮请调低)</label>
+        <input type="range" id="modOpacity" min="0.1" max="1.0" step="0.05" value="0.8">
+    </div>
+    <div class="control">
+        <label>PARTICLE SIZE / 粒子细度</label>
+        <input type="range" id="pSizeRange" min="0.005" max="0.1" step="0.001" value="0.02">
     </div>
     <div class="control">
         <label>MODEL COLOR / 法身颜色</label>
@@ -124,7 +119,7 @@
         <input type="range" id="galRandom" min="0" max="30" value="5">
     </div>
 
-    <div class="hint">左键旋转 | 右键平移 | 滚轮缩放<br>支持 GLB / GLTF 格式</div>
+    <div class="hint">左键旋转 | 右键平移 | 滚轮缩放<br>模型已锁定静止</div>
 </div>
 
 <script type="module">
@@ -138,18 +133,18 @@
     // --- UI 工具 ---
     const loadScreen = document.getElementById('loading');
     const loadText = document.getElementById('loadText');
-    const progressBar = document.getElementById('progressBar');
+    const pFill = document.getElementById('pFill');
 
     function updateLoading(percent, text) {
         loadScreen.style.display = 'flex';
         loadScreen.style.opacity = 1;
-        progressBar.style.width = percent + '%';
+        pFill.style.width = percent + '%';
         if(text) loadText.innerText = text;
     }
 
     function hideLoading() {
         loadText.innerText = "COMPLETE";
-        progressBar.style.width = '100%';
+        pFill.style.width = '100%';
         setTimeout(() => {
             loadScreen.style.opacity = 0;
             setTimeout(() => loadScreen.style.display = 'none', 500);
@@ -161,7 +156,7 @@
     scene.fog = new THREE.FogExp2(0x000000, 0.02);
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 10, 30);
+    camera.position.set(0, 5, 25);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -171,11 +166,13 @@
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = -0.5;
+    controls.autoRotateSpeed = -0.3; // 摄像机缓慢旋转，模型不动
 
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    bloomPass.threshold = 0; bloomPass.strength = 0.8; bloomPass.radius = 0.5;
+    bloomPass.threshold = 0.1; 
+    bloomPass.strength = 0.6; // 降低发光强度
+    bloomPass.radius = 0.5;
 
     const composer = new EffectComposer(renderer);
     composer.addPass(renderScene);
@@ -189,7 +186,10 @@
 
     const params = {
         galRadius: 30, galRandom: 0.5, galSpin: 1,
-        modScale: 1.0, modHeight: 0, pSize: 0.03, modColor: '#ffd700'
+        modScale: 1.0, modHeight: 0, 
+        pSize: 0.02,     // 默认粒子更细
+        modColor: '#ffd700',
+        modOpacity: 0.8  // 默认不透明度
     };
 
     // --- 3. 星系生成 ---
@@ -234,18 +234,15 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 3D模型引擎 (GLB/GLTF + 进度条) ---
+    // --- 4. 3D模型引擎 (静止 + 清晰) ---
     function loadModel(url) {
         updateLoading(0, "CONNECTING...");
 
         const loader = new GLTFLoader();
         
         loader.load(url, 
-            // 1. 加载成功回调
             (gltf) => {
-                updateLoading(100, "PROCESSING GEOMETRY...");
-                
-                // 稍微延迟一点，让UI有机会渲染100%
+                updateLoading(100, "PROCESSING...");
                 setTimeout(() => {
                     const positions = [];
                     gltf.scene.traverse((child) => {
@@ -254,7 +251,7 @@
                             if(!geo.attributes.position) return;
                             const posAttribute = geo.attributes.position;
                             
-                            // 读取顶点
+                            // 读取所有顶点
                             for(let i=0; i<posAttribute.count; i++) {
                                 const v = new THREE.Vector3();
                                 v.fromBufferAttribute(posAttribute, i);
@@ -265,7 +262,7 @@
                     });
 
                     if(positions.length === 0) {
-                        alert("模型中没有检测到网格(Mesh)数据！");
+                        alert("模型无网格数据");
                         hideLoading();
                         return;
                     }
@@ -274,21 +271,15 @@
                     hideLoading();
                 }, 100);
             }, 
-            
-            // 2. 进度回调 (Progress)
             (xhr) => {
                 if (xhr.lengthComputable) {
                     const percent = Math.round((xhr.loaded / xhr.total) * 100);
-                    updateLoading(percent, `DOWNLOADING MODEL ${percent}%`);
-                } else {
-                    updateLoading(50, "READING STREAM..."); // 无法计算大小时
+                    updateLoading(percent, `LOADING ${percent}%`);
                 }
             }, 
-            
-            // 3. 错误回调
             (error) => {
                 console.error(error);
-                alert("模型解析失败，请检查文件格式");
+                alert("解析失败");
                 hideLoading();
             }
         );
@@ -300,28 +291,25 @@
         modelGeometry = new THREE.BufferGeometry();
         modelGeometry.setAttribute('position', new THREE.Float32BufferAttribute(posArray, 3));
         
-        // 自动居中
         modelGeometry.computeBoundingBox();
-        const center = new THREE.Vector3();
-        modelGeometry.boundingBox.getCenter(center);
         modelGeometry.center(); 
 
+        // 【关键修改】使用 NormalBlending (实体渲染模式)
         modelMaterial = new THREE.PointsMaterial({
             size: params.pSize,
             color: new THREE.Color(params.modColor),
             sizeAttenuation: true,
-            depthWrite: true,
-            blending: THREE.AdditiveBlending,
+            depthWrite: true, // 开启深度遮挡
+            blending: THREE.NormalBlending, // 不再叠加变白，保持颜色
             transparent: true,
-            opacity: 0.8
+            opacity: params.modOpacity // 可调透明度
         });
 
         modelPoints = new THREE.Points(modelGeometry, modelMaterial);
         
-        // 自动缩放
         const size = modelGeometry.boundingBox.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z);
-        const autoScale = 10 / maxDim; // 目标大小 10
+        const autoScale = 10 / maxDim;
         
         params.modScale = autoScale; 
         document.getElementById('modScale').value = autoScale;
@@ -339,30 +327,32 @@
         params.modHeight = parseFloat(document.getElementById('modHeight').value);
         params.pSize = parseFloat(document.getElementById('pSizeRange').value);
         params.modColor = document.getElementById('modColor').value;
+        params.modOpacity = parseFloat(document.getElementById('modOpacity').value);
         
         if(modelMaterial) {
             modelMaterial.size = params.pSize;
             modelMaterial.color.set(params.modColor);
+            modelMaterial.opacity = params.modOpacity;
         }
         if(modelPoints) {
             modelPoints.scale.setScalar(params.modScale);
-            modelPoints.position.y = params.modHeight;
+            modelPoints.position.y = params.modHeight; // 只有这里更新位置，没有动画循环
         }
     }
 
     document.getElementById('btnGen').onclick = () => {
         const file = document.getElementById('modelInput').files[0];
-        if(!file) return alert("请选择 .glb 或 .gltf 文件");
+        if(!file) return alert("请选择 .glb 文件");
         const url = URL.createObjectURL(file);
         loadModel(url);
     };
 
-    // 绑定滑块
     document.getElementById('galRadius').addEventListener('input', () => { updateParams(); generateGalaxy(); });
     document.getElementById('galRandom').addEventListener('input', () => { updateParams(); generateGalaxy(); });
     
     document.getElementById('modScale').addEventListener('input', updateParams);
     document.getElementById('modHeight').addEventListener('input', updateParams);
+    document.getElementById('modOpacity').addEventListener('input', updateParams);
     document.getElementById('pSizeRange').addEventListener('input', updateParams);
     document.getElementById('modColor').addEventListener('input', updateParams);
 
@@ -377,6 +367,10 @@
     function tick() {
         const dt = clock.getElapsedTime();
         if(galaxyPoints) galaxyPoints.rotation.y = -dt * 0.05;
+        
+        // 注意：这里不再有 modelPoints 的动画逻辑
+        // 模型位置完全由 updateParams 控制，保持绝对静止
+        
         controls.update();
         composer.render();
         requestAnimationFrame(tick);
