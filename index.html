@@ -3,32 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Galaxy Shaper Fix</title>
+    <title>Mani - Galaxy Control</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
             font-family: 'Segoe UI', monospace; user-select: none; 
         }
 
-        /* 加载与报错层 */
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; color: #ffca28;
-            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
-        }
-        #error-msg { color: #ff5555; margin-top: 10px; font-size: 10px; max-width: 80%; text-align: center; }
-
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
-            background: rgba(15, 12, 10, 0.9);
-            border: 1px solid rgba(255,180,0,0.2);
+            background: rgba(15, 12, 10, 0.95);
+            border: 1px solid rgba(255,180,0,0.3);
             border-radius: 12px;
             padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 60px rgba(0,0,0,0.9);
             max-height: 90vh; overflow-y: auto;
-            display: none; /* 加载成功才显示 */
         }
+        
         #ui::-webkit-scrollbar { width: 4px; }
         #ui::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
 
@@ -50,40 +41,35 @@
         label { display: flex; justify-content: space-between; font-size: 10px; color: #ccc; margin-bottom: 4px; }
         input[type="range"] { width: 100%; cursor: pointer; accent-color: #ffb700; height: 3px; }
         input[type="file"] { width: 100%; font-size: 10px; color: #888; }
-        input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; }
+        input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; cursor: pointer; }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
+        
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex;
+            justify-content: center; align-items: center; color: #ffb700;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
+        }
     </style>
-
-    <!-- 1. 错误捕获 (最先执行) -->
-    <script>
-        window.onerror = function(msg, url, line) {
-            const el = document.getElementById('error-msg');
-            if(el) el.innerText = "ERROR: " + msg + " (Line: " + line + ")";
-        };
-    </script>
     
-    <!-- 2. Import Map -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 </head>
 <body>
 
-<div id="loading">
-    <div>INITIALIZING...</div>
-    <div id="error-msg"></div>
-</div>
+<div id="loading">INITIALIZING...</div>
 
 <div id="ui">
-    <div onclick="document.getElementById('ui').style.opacity='0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
+    <div id="closeBtn" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
-    <h3>GALAXY SHAPER</h3>
+    <h3>GALAXY CONTROL</h3>
     
     <div class="control">
         <label>UPLOAD / 上传法相</label>
@@ -93,7 +79,7 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 法相调节 -->
+    <!-- 法相控制 -->
     <div class="control">
         <label>SIZE / 大小</label>
         <input type="range" id="imgScale" min="0.5" max="3.0" step="0.1" value="1.0">
@@ -103,37 +89,39 @@
         <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
     </div>
     <div class="control">
-        <label>SOLIDITY / 填充 (消黑点)</label>
-        <input type="range" id="pSizeRange" min="0.05" max="0.30" step="0.01" value="0.12" oninput="updateMaterial()">
+        <label>SOLIDITY / 填充度 (消黑点)</label>
+        <input type="range" id="pSizeRange" min="0.05" max="0.30" step="0.01" value="0.12">
     </div>
     <div class="control">
         <label>BRIGHTNESS / 亮度</label>
-        <input type="range" id="brightnessRange" min="5" max="30" value="10" oninput="updateColors()">
+        <input type="range" id="brightnessRange" min="5" max="30" value="10">
     </div>
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 星云塑形 (Galaxy Shape) -->
+    <!-- 星云控制 (已修复) -->
     <div class="control">
         <label>GALAXY SIZE / 扩散范围</label>
-        <input type="range" id="galRadius" min="10" max="60" value="30" oninput="updateGalaxyParams()">
+        <input type="range" id="galRadius" min="10" max="80" value="30">
     </div>
+    
     <div class="control">
         <label>GALAXY MIST / 雾化程度</label>
-        <input type="range" id="galRandom" min="0" max="20" value="5" oninput="updateGalaxyParams()">
+        <input type="range" id="galRandom" min="0" max="30" value="5">
     </div>
+
     <div class="control">
         <label>GALAXY TWIST / 旋绕形状</label>
-        <input type="range" id="galSpin" min="0" max="30" value="10" oninput="updateGalaxyParams()">
+        <input type="range" id="galSpin" min="0" max="50" value="10">
     </div>
 
     <div class="control">
         <label>CORE COLOR / 核心色</label>
-        <input type="color" id="colorInside" value="#ff6030" oninput="updateGalaxyParams()">
+        <input type="color" id="colorInside" value="#ff6030">
     </div>
     <div class="control">
         <label>EDGE COLOR / 边缘色</label>
-        <input type="color" id="colorOutside" value="#1b3984" oninput="updateGalaxyParams()">
+        <input type="color" id="colorOutside" value="#1b3984">
     </div>
 
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
@@ -173,7 +161,7 @@
     composer.addPass(renderScene);
     composer.addPass(bloomPass);
 
-    // --- 2. 全局变量 ---
+    // --- 2. 变量 ---
     let galaxyPoints = null;
     let imgPoints = null;
     let imgGeometry = null;
@@ -181,13 +169,12 @@
     let cachedImg = null;
     let originalColors = [];
 
-    // 星系参数对象
     const parameters = {
-        count: 60000,
-        radius: 30,         // 对应 GALAXY SIZE
+        count: 60000, 
+        radius: 30,
         branches: 3,
-        spin: 1,            // 对应 GALAXY TWIST
-        randomness: 0.5,    // 对应 GALAXY MIST
+        spin: 1,
+        randomness: 0.5,
         randomnessPower: 3,
         insideColor: '#ff6030',
         outsideColor: '#1b3984'
@@ -212,11 +199,10 @@
             const i3 = i * 3;
             const radius = Math.random() * parameters.radius;
             
-            // 旋绕角度
+            // 旋绕与雾化计算
             const spinAngle = radius * parameters.spin;
             const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
 
-            // 雾化扩散
             const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
             const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
             const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
@@ -225,13 +211,10 @@
             positions[i3 + 1] = randomY * 1.5; 
             positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
 
-            // 颜色插值
             const mixedColor = colorInside.clone();
             mixedColor.lerp(colorOutside, radius / parameters.radius);
 
-            colors[i3] = mixedColor.r;
-            colors[i3 + 1] = mixedColor.g;
-            colors[i3 + 2] = mixedColor.b;
+            colors[i3] = mixedColor.r; colors[i3 + 1] = mixedColor.g; colors[i3 + 2] = mixedColor.b;
         }
 
         galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -249,25 +232,23 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 影像处理 ---
+    // --- 4. 影像引擎 (保持不变) ---
     function processSource(src) {
         const img = new Image();
         img.onload = () => {
             cachedImg = img;
             processSourceWithCache();
         };
-        img.onerror = () => alert("图片加载失败");
+        img.onerror = () => alert("加载失败");
         img.src = src;
     }
 
-    // 暴露给全局的函数
     window.processSourceWithCache = function() {
         if (!cachedImg) return;
-        const w = 600; const h = 600; // 固定中等尺寸，保证速度
+        const w = 600; const h = 600; 
         const canvas2d = document.createElement('canvas');
         canvas2d.width = w; canvas2d.height = h;
         const ctx2d = canvas2d.getContext('2d');
-        
         ctx2d.clearRect(0, 0, w, h);
         const aspect = cachedImg.width / cachedImg.height || 1;
         let dw = w, dh = w/aspect;
@@ -296,9 +277,8 @@
                 }
             }
         }
-        
         if(points.length > 0) createImgParticles(points, colors);
-        else alert("图片似乎是空的？");
+        else alert("无内容！");
     };
 
     function createImgParticles(points, colorData) {
@@ -307,7 +287,6 @@
             imgMaterial.dispose();
             scene.remove(imgPoints);
         }
-
         const positions = new Float32Array(points.length * 3);
         const colors = new Float32Array(points.length * 3);
         originalColors = colorData;
@@ -347,39 +326,63 @@
         colorArray[i3+2] = Math.min(1, base.b * boost);
     }
 
-    // --- 暴露给 UI 的交互函数 ---
-    window.updateColors = function() {
+    // --- 5. 事件绑定 (关键修复) ---
+    // 使用 addEventListener 确保 JS 能够捕获事件，不再依赖 HTML 内联
+    
+    function updateColors() {
         if(!imgGeometry) return;
         const colorAttr = imgGeometry.attributes.color.array;
         for(let i=0; i<originalColors.length; i++) applyBrightnessToParticle(i, colorAttr);
         imgGeometry.attributes.color.needsUpdate = true;
-    };
+    }
 
-    window.updateMaterial = function() {
+    function updateMaterial() {
         if(imgMaterial) imgMaterial.size = parseFloat(document.getElementById('pSizeRange').value);
-    };
+    }
 
-    window.updateGalaxyParams = function() {
-        // 获取新参数
+    function updateGalaxyParams() {
         parameters.radius = parseFloat(document.getElementById('galRadius').value);
         parameters.randomness = parseFloat(document.getElementById('galRandom').value) / 10;
         parameters.spin = parseFloat(document.getElementById('galSpin').value) / 10;
         parameters.insideColor = document.getElementById('colorInside').value;
         parameters.outsideColor = document.getElementById('colorOutside').value;
-        
-        // 重绘星系
         generateGalaxy();
-    };
+    }
 
-    // --- 5. 循环与启动 ---
-    generateGalaxy();
+    // 绑定所有滑块事件
+    document.getElementById('pSizeRange').addEventListener('input', updateMaterial);
+    document.getElementById('brightnessRange').addEventListener('input', updateColors);
     
-    // 强制显示 UI 并移除 Loading
+    // 星系滑块绑定
+    document.getElementById('galRadius').addEventListener('input', updateGalaxyParams);
+    document.getElementById('galRandom').addEventListener('input', updateGalaxyParams);
+    document.getElementById('galSpin').addEventListener('input', updateGalaxyParams);
+    document.getElementById('colorInside').addEventListener('input', updateGalaxyParams);
+    document.getElementById('colorOutside').addEventListener('input', updateGalaxyParams);
+
+    // 按钮与键盘
+    document.getElementById('closeBtn').addEventListener('click', () => {
+        document.getElementById('ui').style.opacity = '0';
+    });
+    
+    window.addEventListener('keydown', (e) => {
+        if(e.key.toLowerCase() === 'h') {
+            document.getElementById('ui').style.opacity = document.getElementById('ui').style.opacity === '0' ? '1' : '0';
+        }
+    });
+
+    document.getElementById('btnGen').addEventListener('click', () => {
+        const file = document.getElementById('imageInput').files[0];
+        if(!file) return alert("请选择图片");
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = e => processSource(e.target.result);
+    });
+
+    // --- 6. 循环与启动 ---
+    generateGalaxy();
     document.getElementById('loading').style.opacity = 0;
-    setTimeout(() => {
-        document.getElementById('loading').remove();
-        document.getElementById('ui').style.display = 'block';
-    }, 500);
+    setTimeout(() => document.getElementById('loading').remove(), 500);
 
     const clock = new THREE.Clock();
 
@@ -407,21 +410,6 @@
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
         composer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    window.addEventListener('keydown', (e) => {
-        if(e.key.toLowerCase() === 'h') {
-            const ui = document.getElementById('ui');
-            ui.style.opacity = ui.style.opacity === '0' ? '1' : '0';
-        }
-    });
-
-    document.getElementById('btnGen').addEventListener('click', () => {
-        const file = document.getElementById('imageInput').files[0];
-        if(!file) return alert("请选择图片");
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = e => processSource(e.target.result);
     });
 
 </script>
