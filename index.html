@@ -3,12 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Galaxy Shaper</title>
+    <title>Mani - Galaxy Shaper Fix</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
-            font-family: 'Segoe UI', sans-serif; user-select: none; 
+            font-family: 'Segoe UI', monospace; user-select: none; 
         }
+
+        /* 加载与报错层 */
+        #loading {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #ffca28;
+            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
+        }
+        #error-msg { color: #ff5555; margin-top: 10px; font-size: 10px; max-width: 80%; text-align: center; }
 
         #ui {
             position: absolute; top: 20px; left: 20px; width: 280px;
@@ -18,9 +27,8 @@
             padding: 15px; color: #fff; z-index: 100;
             box-shadow: 0 10px 60px rgba(0,0,0,0.9);
             max-height: 90vh; overflow-y: auto;
+            display: none; /* 加载成功才显示 */
         }
-        
-        /* 隐藏滚动条 */
         #ui::-webkit-scrollbar { width: 4px; }
         #ui::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }
 
@@ -45,52 +53,57 @@
         input[type="color"] { width: 100%; height: 25px; border: none; padding: 0; background: none; }
 
         .hint { font-size: 9px; color: #666; text-align: center; margin-top: 8px; }
-        
-        #loading {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 999; display: flex;
-            justify-content: center; align-items: center; color: #ffb700;
-            font-size: 12px; letter-spacing: 2px; transition: opacity 0.5s;
-        }
     </style>
+
+    <!-- 1. 错误捕获 (最先执行) -->
+    <script>
+        window.onerror = function(msg, url, line) {
+            const el = document.getElementById('error-msg');
+            if(el) el.innerText = "ERROR: " + msg + " (Line: " + line + ")";
+        };
+    </script>
     
+    <!-- 2. Import Map -->
     <script type="importmap">
         {
             "imports": {
-                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
             }
         }
     </script>
 </head>
 <body>
 
-<div id="loading">INITIALIZING ENGINE...</div>
+<div id="loading">
+    <div>INITIALIZING...</div>
+    <div id="error-msg"></div>
+</div>
 
 <div id="ui">
     <div onclick="document.getElementById('ui').style.opacity='0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
 
-    <h3>DIGITAL THANGKA</h3>
+    <h3>GALAXY SHAPER</h3>
     
     <div class="control">
-        <label>UPLOAD / 上传法相 (PNG)</label>
+        <label>UPLOAD / 上传法相</label>
         <input type="file" id="imageInput" accept="image/*,.svg">
         <button class="btn" id="btnGen">ACTIVATE / 显现</button>
     </div>
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 法相控制 -->
+    <!-- 法相调节 -->
     <div class="control">
-        <label>SIZE / 法相大小</label>
+        <label>SIZE / 大小</label>
         <input type="range" id="imgScale" min="0.5" max="3.0" step="0.1" value="1.0">
     </div>
     <div class="control">
-        <label>HEIGHT / 悬浮高度</label>
+        <label>HEIGHT / 高度</label>
         <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
     </div>
     <div class="control">
-        <label>SOLIDITY / 填充度 (消灭黑点)</label>
+        <label>SOLIDITY / 填充 (消黑点)</label>
         <input type="range" id="pSizeRange" min="0.05" max="0.30" step="0.01" value="0.12" oninput="updateMaterial()">
     </div>
     <div class="control">
@@ -100,32 +113,33 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
-    <!-- 星云控制 (新增) -->
+    <!-- 星云塑形 (Galaxy Shape) -->
     <div class="control">
-        <label>GALAXY EXPAND / 星云扩散范围</label>
+        <label>GALAXY SIZE / 扩散范围</label>
         <input type="range" id="galRadius" min="10" max="60" value="30" oninput="updateGalaxyParams()">
     </div>
-    
     <div class="control">
-        <label>GALAXY MIST / 星云雾化 (形状松散度)</label>
+        <label>GALAXY MIST / 雾化程度</label>
         <input type="range" id="galRandom" min="0" max="20" value="5" oninput="updateGalaxyParams()">
     </div>
-
     <div class="control">
-        <label>GALAXY TWIST / 星云旋绕 (形状)</label>
-        <input type="range" id="galSpin" min="0" max="50" value="10" oninput="updateGalaxyParams()">
+        <label>GALAXY TWIST / 旋绕形状</label>
+        <input type="range" id="galSpin" min="0" max="30" value="10" oninput="updateGalaxyParams()">
     </div>
 
     <div class="control">
-        <label>GALAXY COLOR / 星云颜色</label>
+        <label>CORE COLOR / 核心色</label>
         <input type="color" id="colorInside" value="#ff6030" oninput="updateGalaxyParams()">
-        <input type="color" id="colorOutside" value="#1b3984" style="margin-top:5px;" oninput="updateGalaxyParams()">
+    </div>
+    <div class="control">
+        <label>EDGE COLOR / 边缘色</label>
+        <input type="color" id="colorOutside" value="#1b3984" oninput="updateGalaxyParams()">
     </div>
 
     <div class="hint">按 <b>H</b> 键隐藏界面</div>
 </div>
 
-<script type="module" data-cfasync="false">
+<script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
     import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -152,14 +166,14 @@
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
     bloomPass.threshold = 0.2;
-    bloomPass.strength = 0.6;
+    bloomPass.strength = 0.5;
     bloomPass.radius = 0.5;
 
     const composer = new EffectComposer(renderer);
     composer.addPass(renderScene);
     composer.addPass(bloomPass);
 
-    // --- 2. 变量 ---
+    // --- 2. 全局变量 ---
     let galaxyPoints = null;
     let imgPoints = null;
     let imgGeometry = null;
@@ -167,44 +181,249 @@
     let cachedImg = null;
     let originalColors = [];
 
-    // 星系参数
+    // 星系参数对象
     const parameters = {
-        count: 80000, 
-        radius: 30,
+        count: 60000,
+        radius: 30,         // 对应 GALAXY SIZE
         branches: 3,
-        spin: 1,
-        randomness: 0.5,
+        spin: 1,            // 对应 GALAXY TWIST
+        randomness: 0.5,    // 对应 GALAXY MIST
         randomnessPower: 3,
         insideColor: '#ff6030',
         outsideColor: '#1b3984'
     };
 
-    // --- 3. 星系生成 (动态重绘) ---
+    // --- 3. 星系生成 (核心逻辑) ---
     function generateGalaxy() {
-        if (galaxyPoints) {
+        if (galaxyPoints !== null) {
+            galaxyGeometry.dispose();
+            galaxyMaterial.dispose();
             scene.remove(galaxyPoints);
-            galaxyPoints.geometry.dispose();
-            galaxyPoints.material.dispose();
         }
 
-        const geometry = new THREE.BufferGeometry();
+        const galaxyGeometry = new THREE.BufferGeometry();
         const positions = new Float32Array(parameters.count * 3);
         const colors = new Float32Array(parameters.count * 3);
-        const cIn = new THREE.Color(parameters.insideColor);
-        const cOut = new THREE.Color(parameters.outsideColor);
+
+        const colorInside = new THREE.Color(parameters.insideColor);
+        const colorOutside = new THREE.Color(parameters.outsideColor);
 
         for (let i = 0; i < parameters.count; i++) {
             const i3 = i * 3;
-            const r = Math.random() * parameters.radius;
+            const radius = Math.random() * parameters.radius;
             
-            // 旋绕逻辑
-            const spinAngle = r * parameters.spin;
+            // 旋绕角度
+            const spinAngle = radius * parameters.spin;
             const branchAngle = (i % parameters.branches) / parameters.branches * Math.PI * 2;
-            
-            // 雾化/扩散逻辑 (randomness)
-            const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random()<0.5?1:-1) * parameters.randomness * r;
-            const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random()<0.5?1:-1) * parameters.randomness * r;
-            const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random()<0.5?1:-1) * parameters.randomness * r;
 
-            positions[i3] = Math.cos(branchAngle + spinAngle) * r + randomX;
-            positions[i3+1] = randomY * 1.
+            // 雾化扩散
+            const randomX = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+            const randomY = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+            const randomZ = Math.pow(Math.random(), parameters.randomnessPower) * (Math.random() < 0.5 ? 1 : -1) * parameters.randomness * radius;
+
+            positions[i3] = Math.cos(branchAngle + spinAngle) * radius + randomX;
+            positions[i3 + 1] = randomY * 1.5; 
+            positions[i3 + 2] = Math.sin(branchAngle + spinAngle) * radius + randomZ;
+
+            // 颜色插值
+            const mixedColor = colorInside.clone();
+            mixedColor.lerp(colorOutside, radius / parameters.radius);
+
+            colors[i3] = mixedColor.r;
+            colors[i3 + 1] = mixedColor.g;
+            colors[i3 + 2] = mixedColor.b;
+        }
+
+        galaxyGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        galaxyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const galaxyMaterial = new THREE.PointsMaterial({
+            size: 0.04,
+            sizeAttenuation: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexColors: true
+        });
+
+        galaxyPoints = new THREE.Points(galaxyGeometry, galaxyMaterial);
+        scene.add(galaxyPoints);
+    }
+
+    // --- 4. 影像处理 ---
+    function processSource(src) {
+        const img = new Image();
+        img.onload = () => {
+            cachedImg = img;
+            processSourceWithCache();
+        };
+        img.onerror = () => alert("图片加载失败");
+        img.src = src;
+    }
+
+    // 暴露给全局的函数
+    window.processSourceWithCache = function() {
+        if (!cachedImg) return;
+        const w = 600; const h = 600; // 固定中等尺寸，保证速度
+        const canvas2d = document.createElement('canvas');
+        canvas2d.width = w; canvas2d.height = h;
+        const ctx2d = canvas2d.getContext('2d');
+        
+        ctx2d.clearRect(0, 0, w, h);
+        const aspect = cachedImg.width / cachedImg.height || 1;
+        let dw = w, dh = w/aspect;
+        if(dh > h) { dh = h; dw = h*aspect; }
+        ctx2d.drawImage(cachedImg, (w-dw)/2, (h-dh)/2, dw, dh);
+        
+        const data = ctx2d.getImageData(0,0,w,h).data;
+        const points = [];
+        const colors = [];
+        const gap = 1; 
+        const jitter = 0.9;
+
+        for(let y=0; y<h; y+=gap) {
+            for(let x=0; x<w; x+=gap) {
+                const i = (y*w+x)*4;
+                const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                if (a > 30) {
+                    const jx = (Math.random()-0.5) * jitter;
+                    const jy = (Math.random()-0.5) * jitter;
+                    points.push({
+                        x: (x + jx - w/2) / (w/30), 
+                        y: -(y + jy - h/2) / (w/30), 
+                        z: (Math.random() - 0.5) * 0.1 
+                    });
+                    colors.push({ r: r/255, g: g/255, b: b/255 });
+                }
+            }
+        }
+        
+        if(points.length > 0) createImgParticles(points, colors);
+        else alert("图片似乎是空的？");
+    };
+
+    function createImgParticles(points, colorData) {
+        if (imgPoints !== null) {
+            imgGeometry.dispose();
+            imgMaterial.dispose();
+            scene.remove(imgPoints);
+        }
+
+        const positions = new Float32Array(points.length * 3);
+        const colors = new Float32Array(points.length * 3);
+        originalColors = colorData;
+
+        for(let i=0; i<points.length; i++) {
+            const i3 = i*3;
+            positions[i3] = points[i].x;
+            positions[i3+1] = points[i].y;
+            positions[i3+2] = points[i].z;
+            applyBrightnessToParticle(i, colors);
+        }
+
+        imgGeometry = new THREE.BufferGeometry();
+        imgGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        imgGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        imgMaterial = new THREE.PointsMaterial({
+            size: parseFloat(document.getElementById('pSizeRange').value),
+            sizeAttenuation: true,
+            depthWrite: true,
+            blending: THREE.NormalBlending, 
+            vertexColors: true,
+            transparent: true,
+            opacity: 1.0 
+        });
+
+        imgPoints = new THREE.Points(imgGeometry, imgMaterial);
+        scene.add(imgPoints);
+    }
+    
+    function applyBrightnessToParticle(index, colorArray) {
+        const base = originalColors[index];
+        const boost = parseFloat(document.getElementById('brightnessRange').value) / 10;
+        const i3 = index * 3;
+        colorArray[i3] = Math.min(1, base.r * boost);
+        colorArray[i3+1] = Math.min(1, base.g * boost);
+        colorArray[i3+2] = Math.min(1, base.b * boost);
+    }
+
+    // --- 暴露给 UI 的交互函数 ---
+    window.updateColors = function() {
+        if(!imgGeometry) return;
+        const colorAttr = imgGeometry.attributes.color.array;
+        for(let i=0; i<originalColors.length; i++) applyBrightnessToParticle(i, colorAttr);
+        imgGeometry.attributes.color.needsUpdate = true;
+    };
+
+    window.updateMaterial = function() {
+        if(imgMaterial) imgMaterial.size = parseFloat(document.getElementById('pSizeRange').value);
+    };
+
+    window.updateGalaxyParams = function() {
+        // 获取新参数
+        parameters.radius = parseFloat(document.getElementById('galRadius').value);
+        parameters.randomness = parseFloat(document.getElementById('galRandom').value) / 10;
+        parameters.spin = parseFloat(document.getElementById('galSpin').value) / 10;
+        parameters.insideColor = document.getElementById('colorInside').value;
+        parameters.outsideColor = document.getElementById('colorOutside').value;
+        
+        // 重绘星系
+        generateGalaxy();
+    };
+
+    // --- 5. 循环与启动 ---
+    generateGalaxy();
+    
+    // 强制显示 UI 并移除 Loading
+    document.getElementById('loading').style.opacity = 0;
+    setTimeout(() => {
+        document.getElementById('loading').remove();
+        document.getElementById('ui').style.display = 'block';
+    }, 500);
+
+    const clock = new THREE.Clock();
+
+    function tick() {
+        const elapsedTime = clock.getElapsedTime();
+
+        if(galaxyPoints) galaxyPoints.rotation.y = elapsedTime * 0.05;
+        
+        if(imgPoints) {
+            imgPoints.quaternion.copy(camera.quaternion);
+            const height = parseFloat(document.getElementById('textHeight').value);
+            const scale = parseFloat(document.getElementById('imgScale').value);
+            imgPoints.position.y = height + Math.sin(elapsedTime * 0.5) * 0.2;
+            imgPoints.scale.set(scale, scale, scale);
+        }
+
+        controls.update();
+        composer.render();
+        requestAnimationFrame(tick);
+    }
+    tick();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.addEventListener('keydown', (e) => {
+        if(e.key.toLowerCase() === 'h') {
+            const ui = document.getElementById('ui');
+            ui.style.opacity = ui.style.opacity === '0' ? '1' : '0';
+        }
+    });
+
+    document.getElementById('btnGen').addEventListener('click', () => {
+        const file = document.getElementById('imageInput').files[0];
+        if(!file) return alert("请选择图片");
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = e => processSource(e.target.result);
+    });
+
+</script>
+</body>
+</html>
