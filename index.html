@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mani - Digital Thangka</title>
+    <title>Mani - Digital Thangka Final</title>
     <style>
         body { 
             margin: 0; overflow: hidden; background: #000; 
@@ -60,7 +60,7 @@
 </head>
 <body>
 
-<div id="loading">INITIALIZING THANGKA ENGINE...</div>
+<div id="loading">INITIALIZING...</div>
 
 <div id="ui">
     <div onclick="document.getElementById('ui').style.opacity='0'" style="position:absolute; top:10px; right:15px; cursor:pointer; color:#666;">×</div>
@@ -75,9 +75,19 @@
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
 
+    <!-- 新增：大小调节 -->
+    <div class="control">
+        <label>SIZE / 法相大小</label>
+        <input type="range" id="imgScale" min="0.5" max="3.0" step="0.1" value="1.0">
+    </div>
+
+    <div class="control">
+        <label>HEIGHT / 悬浮高度</label>
+        <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
+    </div>
+
     <div class="control">
         <label>SOLIDITY / 填充度 (消灭黑点)</label>
-        <!-- 粒子大小范围调大，允许重叠 -->
         <input type="range" id="pSizeRange" min="0.05" max="0.30" step="0.01" value="0.12" oninput="updateMaterial()">
     </div>
 
@@ -87,13 +97,8 @@
     </div>
 
     <div class="control">
-        <label>BRIGHTNESS / 亮度 (自然还原)</label>
+        <label>BRIGHTNESS / 亮度</label>
         <input type="range" id="brightnessRange" min="5" max="30" value="10" oninput="updateColors()">
-    </div>
-
-    <div class="control">
-        <label>HEIGHT / 悬浮高度</label>
-        <input type="range" id="textHeight" min="-5" max="10" value="2" step="0.5">
     </div>
 
     <div style="border-top:1px solid rgba(255,255,255,0.1); margin:12px 0;"></div>
@@ -130,11 +135,10 @@
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.5;
 
-    // 光晕 (Bloom) - 星系发光，人物微光
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-    bloomPass.threshold = 0.2; // 只有很亮的地方才发光
-    bloomPass.strength = 0.5;  // 强度适中
+    bloomPass.threshold = 0.2;
+    bloomPass.strength = 0.5;
     bloomPass.radius = 0.5;
 
     const composer = new EffectComposer(renderer);
@@ -158,7 +162,7 @@
         outsideColor: '#1b3984'
     };
 
-    // --- 3. 星系背景 (保持发光模式) ---
+    // --- 3. 星系背景 ---
     function generateGalaxy() {
         if (galaxyPoints) {
             scene.remove(galaxyPoints);
@@ -198,7 +202,7 @@
             size: 0.04,
             sizeAttenuation: true,
             depthWrite: false,
-            blending: THREE.AdditiveBlending, // 星系依然是发光叠加
+            blending: THREE.AdditiveBlending,
             vertexColors: true
         });
 
@@ -206,7 +210,7 @@
         scene.add(galaxyPoints);
     }
 
-    // --- 4. 庄严法相引擎 (Solid Mode) ---
+    // --- 4. 影像引擎 ---
     
     function processSource(src) {
         const img = new Image();
@@ -242,7 +246,6 @@
         const colors = [];
         const gap = 1; 
 
-        // 随机填缝 (Jitter)
         const jitter = 0.9;
 
         for(let y=0; y<h; y+=gap) {
@@ -251,7 +254,6 @@
                 const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
                 
                 if (a > 30) {
-                    // 加入随机抖动，打破网格感
                     const jx = (Math.random()-0.5) * jitter;
                     const jy = (Math.random()-0.5) * jitter;
                     
@@ -292,16 +294,14 @@
         imgGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         imgGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        // 【核心修改】使用 NormalBlending (正常混合)
-        // 这样粒子叠加不会变白，而是像颜料一样覆盖
         imgMaterial = new THREE.PointsMaterial({
             size: parseFloat(document.getElementById('pSizeRange').value),
             sizeAttenuation: true,
-            depthWrite: true, // 开启深度写入，让前面的粒子遮挡后面的
+            depthWrite: true,
             blending: THREE.NormalBlending, 
             vertexColors: true,
             transparent: true,
-            opacity: 1.0 // 不透明，保证色彩还原
+            opacity: 1.0 
         });
 
         imgPoints = new THREE.Points(imgGeometry, imgMaterial);
@@ -312,7 +312,6 @@
         const base = originalColors[index];
         const boost = parseFloat(document.getElementById('brightnessRange').value) / 10;
         const i3 = index * 3;
-        // 简单亮度增益，不改变色相
         colorArray[i3] = Math.min(1, base.r * boost);
         colorArray[i3+1] = Math.min(1, base.g * boost);
         colorArray[i3+2] = Math.min(1, base.b * boost);
@@ -352,7 +351,11 @@
         if(imgPoints) {
             imgPoints.quaternion.copy(camera.quaternion);
             const height = parseFloat(document.getElementById('textHeight').value);
+            // 这里加入缩放逻辑
+            const scale = parseFloat(document.getElementById('imgScale').value);
+            
             imgPoints.position.y = height + Math.sin(elapsedTime * 0.5) * 0.2;
+            imgPoints.scale.set(scale, scale, scale); // 实时缩放
         }
 
         controls.update();
